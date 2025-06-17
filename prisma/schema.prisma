@@ -1,0 +1,48 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+generator json {
+  provider = "prisma-json-types-generator"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id               String     @id
+  accessToken      String     @db.Text
+  refreshToken     String?    @db.Text
+  tokenExpiresAt   DateTime?
+  portalDomain     String     @unique
+  applicationToken String     @db.Text
+  instances        Instance[]
+  createdAt        DateTime   @default(now())
+  updatedAt        DateTime   @updatedAt
+}
+
+enum InstanceState {
+  notAuthorized
+  authorized
+  yellowCard
+  blocked
+  starting
+}
+
+model Instance {
+  id               BigInt         @id @default(autoincrement())
+  idInstance       BigInt         @unique
+  apiTokenInstance String
+  stateInstance    InstanceState?
+  userId           String
+  user             User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// [InstanceSettings]
+  settings         Json?          @default("{}") @db.Json
+  bitrixLine       Int?           @db.UnsignedMediumInt
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  @@unique([userId, bitrixLine])
+}

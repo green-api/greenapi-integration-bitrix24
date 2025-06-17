@@ -1,0 +1,44 @@
+{
+  "name": "greenapi-integration-bitrix24",
+  "version": "0.0.1",
+  "description": "GREEN-API Integration with Bitrix24",
+  "author": "GREEN-API",
+  "private": false,
+  "license": "MIT",
+  "scripts": {
+    "build": "nest build",
+    "start": "nest start",
+    "start:dev": "nest start --watch",
+    "start:debug": "nest start --debug --watch",
+    "start:prod": "node dist/main"
+  },
+  "dependencies": {
+    "@green-api/greenapi-integration": "^0.7.1",
+    "@nestjs/common": "^11.0.1",
+    "@nestjs/config": "^4.0.2",
+    "@nestjs/core": "^11.0.1",
+    "@nestjs/platform-express": "^11.0.1",
+    "@nestjs/serve-static": "^5.0.3",
+    "@prisma/client": "^6.8.2",
+    "class-transformer": "^0.5.1",
+    "class-validator": "^0.14.2",
+    "helmet": "^8.1.0",
+    "reflect-metadata": "^0.2.2",
+    "rxjs": "^7.8.1"
+  },
+  "devDependencies": {
+    "@nestjs/cli": "^11.0.0",
+    "@nestjs/schematics": "^11.0.0",
+    "@nestjs/testing": "^11.0.1",
+    "@types/express": "^5.0.0",
+    "@types/node": "^22.10.7",
+    "globals": "^16.0.0",
+    "prisma": "^6.8.2",
+    "prisma-json-types-generator": "^3.4.2",
+    "source-map-support": "^0.5.21",
+    "ts-loader": "^9.5.2",
+    "ts-node": "^10.9.2",
+    "tsconfig-paths": "^4.2.0",
+    "typescript": "^5.7.3"
+  }
+}

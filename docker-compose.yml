@@ -1,0 +1,27 @@
+version: '3.8'
+
+services:
+  adapter:
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      - DATABASE_URL=${DATABASE_URL}
+      - BITRIX24_CLIENT_ID=${BITRIX24_CLIENT_ID}
+      - BITRIX24_CLIENT_SECRET=${BITRIX24_CLIENT_SECRET}
+      - APP_URL=${APP_URL}
+    depends_on:
+      - db
+
+  db:
+    image: mysql:8
+    environment:
+      - MYSQL_ROOT_PASSWORD=password
+      - MYSQL_DATABASE=adapter
+      - MYSQL_USER=mysqluser
+      - MYSQL_PASSWORD=mysqlpassword
+    volumes:
+      - mysql_data:/var/lib/mysql
+
+volumes:
+  mysql_data:
