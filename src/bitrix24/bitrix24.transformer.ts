@@ -5,7 +5,7 @@ import {
 	GreenApiWebhook,
 	formatPhoneNumber,
 	GreenApiLogger,
-	extractPhoneNumberFromVCard, 
+	extractPhoneNumberFromVCard,
 	QuotedMessage,
 } from "@green-api/greenapi-integration";
 import { Bitrix24PlatformMessage } from "../types";
@@ -314,7 +314,10 @@ export class Bitrix24Transformer implements MessageTransformer<Bitrix24WebhookDt
 
 				files = message.message?.files || [];
 
+				messageText = messageText.replace(/\[b][^:]+:\[\/b]\s+\[br]/i, "");
+				messageText = messageText.replace(/\[b][^:]+:\[\/b]\[br]/i, "");
 				messageText = messageText.replace(/\[b][^:]+@[^:]+:\[\/b]\s*\[br]/i, "");
+				messageText = messageText.replace(/^\[b][^:]+:\[\/b]\s*/i, "");
 				messageText = messageText
 					.replace(/\[b]/g, "**")
 					.replace(/\[\/b]/g, "**")
@@ -328,10 +331,10 @@ export class Bitrix24Transformer implements MessageTransformer<Bitrix24WebhookDt
 				phone = message.chat?.id || "";
 
 				this.logger.info(`Extracted from MESSAGES format:`, {
-					messageText,
+					originalText: message.message?.text,
+					cleanedText: messageText,
 					phone,
 					files: files.length,
-					originalMessage: message,
 				});
 			} else if (bitrixWebhook.data.FIELDS) {
 				const fields = bitrixWebhook.data.FIELDS;
