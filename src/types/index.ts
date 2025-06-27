@@ -14,6 +14,10 @@ export interface Bitrix24PlatformMessage {
 	phone: string;
 	portalDomain: string;
 	senderName: string;
+	isGroupChat?: boolean;
+	originalSender?: string;
+	originalSenderPhone?: string;
+	groupChatId?: string;
 }
 
 export interface Bitrix24MessagePayload {
@@ -46,8 +50,8 @@ export interface ConnectorConfigurationRequest {
 }
 
 export interface BitrixInstallQuery {
-  DOMAIN: string;
-  LANG: string;
+	DOMAIN: string;
+	LANG: string;
 }
 
 export interface ConnectorSetting {

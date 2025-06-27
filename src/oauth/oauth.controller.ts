@@ -166,7 +166,8 @@ export class OAuthController {
 				fillAllFields: isRussian ? "Пожалуйста, заполните все поля" : "Please fill in all fields",
 				invalidInstanceId: isRussian ? "ID инстанса должен содержать 10 цифр" : "Instance ID must be 10 digits",
 				tokenTooShort: isRussian ? "API токен слишком короткий" : "API Token seems too short",
-				configSaved: isRussian ? "✅ Настройки сохранены!" : "✅ Configuration saved!",
+				configSaved: isRussian ? "✅ Настройки сохранены! Подождите около 2-х минут для применения настроек инстанса."
+					: "✅ Configuration saved! Wait for around 2 minutes for instance settings to apply.",
 				saveFailed: isRussian ? "❌ Ошибка:" : "❌ Error:",
 				networkError: isRussian ? "❌ Ошибка сети" : "❌ Network error",
 				failed: isRussian ? "Не удалось" : "Failed",

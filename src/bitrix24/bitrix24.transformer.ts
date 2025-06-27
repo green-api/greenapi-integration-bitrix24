@@ -15,6 +15,13 @@ import { Bitrix24WebhookDto, BitrixFileDto } from "./dto/bitrix24-webhook.dto";
 export class Bitrix24Transformer implements MessageTransformer<Bitrix24WebhookDto, Bitrix24PlatformMessage> {
 	private readonly logger = GreenApiLogger.getInstance(Bitrix24Transformer.name);
 
+	private formatGroupMessage(messageText: string, senderName: string, senderPhone: string, isFromGroup: boolean): string {
+		if (!isFromGroup || !senderName) {
+			return messageText;
+		}
+		return `${senderName} (+${senderPhone}):\n\n ${messageText}`;
+	}
+
 	toPlatformMessage(webhook: GreenApiWebhook): Bitrix24PlatformMessage {
 		this.logger.debug(`Transforming GREEN-API webhook to Bitrix24 message: ${JSON.stringify(webhook)}`);
 
@@ -23,7 +30,23 @@ export class Bitrix24Transformer implements MessageTransformer<Bitrix24WebhookDt
 
 		if (webhook.typeWebhook === "incomingMessageReceived") {
 			const msgData = webhook.messageData;
+			const chatId = webhook.senderData.chatId;
+			const isFromGroup = chatId.endsWith("@g.us");
 			const senderPhone = webhook.senderData.sender.replace("@c.us", "");
+			const senderName = webhook.senderData.senderName || webhook.senderData.senderContactName || `WhatsApp ${senderPhone}`;
+
+			let conversationId: string;
+			let conversationName: string;
+
+			if (isFromGroup) {
+				conversationId = chatId.replace("@g.us", "");
+				conversationName = `${webhook.senderData.chatName} (Group)` || `WhatsApp Group ${conversationId} (Group)`;
+				this.logger.info(`Processing group message from group: ${conversationName} (${chatId}), sender: ${senderName} (+${senderPhone})`);
+			} else {
+				conversationId = senderPhone;
+				conversationName = senderName;
+				this.logger.info(`Processing individual message from: ${senderName} (+${senderPhone})`);
+			}
 
 			switch (msgData.typeMessage) {
 				case "textMessage":
@@ -46,7 +69,7 @@ export class Bitrix24Transformer implements MessageTransformer<Bitrix24WebhookDt
 				case "videoMessage":
 				case "documentMessage":
 				case "audioMessage":
-					messageText = msgData.fileMessageData?.caption;
+					messageText = msgData.fileMessageData?.caption || "";
 					if (msgData.fileMessageData?.downloadUrl) {
 						attachments.push({
 							url: msgData.fileMessageData.downloadUrl,
@@ -209,21 +232,84 @@ export class Bitrix24Transformer implements MessageTransformer<Bitrix24WebhookDt
 					messageText = `👥 Group invitation${invite?.groupName ? ` for "${invite.groupName}"` : ""}${invite?.caption ? `\nCaption: ${invite.caption}` : ""}`;
 					break;
 
+				case "interactiveButtons":
+					const interactiveButtons = msgData.interactiveButtons;
+					if (interactiveButtons) {
+						const buttonsList = interactiveButtons.buttons
+							?.map((button) => {
+								let buttonDescription = `• ${button.buttonText}`;
+								if (button.type === "url" && button.url) {
+									buttonDescription += ` (${button.url})`;
+								} else if (button.type === "call" && button.phoneNumber) {
+									buttonDescription += ` (📞 ${button.phoneNumber})`;
+								} else if (button.type === "copy" && button.copyCode) {
+									buttonDescription += ` (📋 Copy: "${button.copyCode}")`;
+								}
+								return buttonDescription;
+							})
+							.join("\n") || "";
+
+						messageText = [
+							"🔘 Interactive message with buttons:",
+							interactiveButtons.titleText && `Title: ${interactiveButtons.titleText}`,
+							interactiveButtons.contentText,
+							buttonsList && `\nButtons:\n${buttonsList}`,
+							interactiveButtons.footerText && `\nFooter: ${interactiveButtons.footerText}`,
+						].filter(Boolean).join("\n");
+					} else {
+						messageText = "🔘 Interactive message with buttons received";
+					}
+					break;
+
+				case "interactiveButtonsReply":
+					const interactiveButtonsReply = msgData.interactiveButtonsReply;
+					if (interactiveButtonsReply) {
+						const replyButtonsList = interactiveButtonsReply.buttons
+							?.map((button) => `• ${button.buttonText}`)
+							.join("\n") || "";
+
+						messageText = [
+							"💬 Interactive reply message with buttons:",
+							interactiveButtonsReply.titleText && `Title: ${interactiveButtonsReply.titleText}`,
+							interactiveButtonsReply.contentText,
+							replyButtonsList && `\nReply options:\n${replyButtonsList}`,
+							interactiveButtonsReply.footerText && `\nFooter: ${interactiveButtonsReply.footerText}`,
+						].filter(Boolean).join("\n");
+					} else {
+						messageText = "💬 Interactive reply message with buttons received";
+					}
+					break;
+
+				case "templateButtonsReplyMessage":
+					const templateButtonReply = msgData.templateButtonReplyMessage;
+					if (templateButtonReply) {
+						messageText = [
+							"✅ Button clicked:",
+							`Selected: "${templateButtonReply.selectedDisplayText}"`,
+							templateButtonReply.selectedId && `Button ID: ${templateButtonReply.selectedId}`,
+							templateButtonReply.selectedIndex !== undefined && `Position: ${templateButtonReply.selectedIndex + 1}`,
+						].filter(Boolean).join("\n");
+					} else {
+						messageText = "✅ Button was clicked";
+					}
+					break;
+
 				default:
 					this.logger.warn(`Unsupported GREEN-API message type`, msgData);
 					messageText = "📱 Received unknown message type";
 			}
 
+			const formattedMessage = this.formatGroupMessage(messageText.trim(), senderName, senderPhone, isFromGroup);
 			return {
 				id: webhook.idMessage,
 				entityType: "CONTACT",
 				entityId: 0,
-				message: messageText.trim(),
+				message: formattedMessage,
 				direction: "inbound",
 				attachments: attachments.length > 0 ? attachments : undefined,
-				phone: senderPhone,
+				phone: conversationId,
 				portalDomain: "",
-				senderName: webhook.senderData.senderName,
+				senderName: conversationName,
 			};
 		}
 
@@ -299,7 +385,6 @@ export class Bitrix24Transformer implements MessageTransformer<Bitrix24WebhookDt
 		this.logger.debug(`Transforming Bitrix24 webhook to GREEN-API message: ${JSON.stringify(bitrixWebhook)}`);
 
 		if (bitrixWebhook.event?.toUpperCase() === "ONIMCONNECTORMESSAGEADD") {
-
 			if (!bitrixWebhook.data) {
 				throw new Error("Missing webhook data");
 			}
@@ -311,7 +396,6 @@ export class Bitrix24Transformer implements MessageTransformer<Bitrix24WebhookDt
 			if (bitrixWebhook.data.MESSAGES && Array.isArray(bitrixWebhook.data.MESSAGES) && bitrixWebhook.data.MESSAGES.length > 0) {
 				const message = bitrixWebhook.data.MESSAGES[0];
 				messageText = message.message?.text || "";
-
 				files = message.message?.files || [];
 
 				messageText = messageText.replace(/\[b][^:]+:\[\/b]\s+\[br]/i, "");
@@ -367,16 +451,23 @@ export class Bitrix24Transformer implements MessageTransformer<Bitrix24WebhookDt
 				throw new Error("No phone number found in webhook data");
 			}
 
-			const cleanPhone = phone.replace(/\D/g, "");
-			if (cleanPhone.length < 10) {
-				throw new Error(`Invalid phone number format: ${phone} (cleaned: ${cleanPhone})`);
-			}
+			let chatId: string;
 
-			const chatId = formatPhoneNumber(cleanPhone);
+			if (/^\d{15,}$/.test(phone)) {
+				chatId = `${phone}@g.us`;
+				this.logger.info(`Sending message to group chat: ${chatId}`);
+			} else {
+				const cleanPhone = phone.replace(/\D/g, "");
+				if (cleanPhone.length < 10) {
+					throw new Error(`Invalid phone number format: ${phone} (cleaned: ${cleanPhone})`);
+				}
+				chatId = formatPhoneNumber(cleanPhone);
+				this.logger.info(`Sending message to individual chat: ${chatId} (original: ${phone})`);
+			}
 
 			if (files.length > 0) {
 				const file = files[0];
-				this.logger.info(`Sending file "${file.name}" to ${chatId} (original: ${phone})`);
+				this.logger.info(`Sending file "${file.name}" to ${chatId}`);
 
 				return {
 					type: "url-file",
@@ -389,7 +480,7 @@ export class Bitrix24Transformer implements MessageTransformer<Bitrix24WebhookDt
 			}
 
 			if (messageText) {
-				this.logger.info(`Sending message "${messageText}" to ${chatId} (original: ${phone})`);
+				this.logger.info(`Sending message "${messageText}" to ${chatId}`);
 				return {
 					type: "text",
 					chatId,
