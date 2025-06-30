@@ -711,6 +711,16 @@ export class Bitrix24Service extends BaseAdapter<
 			}
 		}
 
+		const instances = await this.prisma.getInstancesByUserId(portalDomain);
+		const lineInstance = instances.find(inst => inst.bitrixLine === line);
+
+		if (lineInstance) {
+			this.logger.info(`Line ${line} already has instance ${lineInstance.idInstance}, replacing with ${idInstance}`);
+
+			await this.prisma.removeInstance(lineInstance.idInstance);
+			this.logger.info(`Removed old instance ${lineInstance.idInstance} from line ${line}`);
+		}
+
 		const appBaseUrl = this.configService.get<string>("APP_URL");
 		const settings: Settings = {
 			webhookUrl: `${appBaseUrl}/webhooks/green-api`,
