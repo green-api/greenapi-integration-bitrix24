@@ -7,13 +7,14 @@ import { ConfigModule } from "@nestjs/config";
 import { AppController } from "./app.controller";
 import { ServeStaticModule } from "@nestjs/serve-static";
 import { join } from "path";
+import { ClientModule } from "./client/client.module";
 
 @Module({
 	imports: [ConfigModule.forRoot({
 		isGlobal: true, envFilePath: ".env", cache: true,
 	}), ServeStaticModule.forRoot({
 		rootPath: join(__dirname, "..", "static"),
-	}), Bitrix24Module, OauthModule, WebhooksModule, PrismaModule],
+	}), Bitrix24Module, OauthModule, WebhooksModule, PrismaModule, ClientModule],
 	controllers: [AppController],
 })
 export class AppModule {}

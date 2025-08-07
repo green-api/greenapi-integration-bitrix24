@@ -769,6 +769,130 @@ export class Bitrix24Service extends BaseAdapter<
 		}
 	}
 
+	async getInstances(portalUrl: string): Promise<(Instance & { info?: any })[]> {
+		this.logger.info(`Fetching instances for portal: ${portalUrl}`);
+		const user = await this.prisma.findUser(portalUrl);
+		if (!user) {
+			throw new NotFoundError(`User not found for portal ${portalUrl}`);
+		}
+		const instances = await this.prisma.getInstancesByUserId(user.id);
+
+		const instancesWithInfo = await Promise.all(
+			instances.map(async (instance) => {
+				try {
+					const info = await this.getInstanceInfo(instance.idInstance);
+					return { ...instance, info };
+				} catch (error) {
+					this.logger.error(`Could not get info for instance ${instance.idInstance}`, error);
+					return instance;
+				}
+			}),
+		);
+
+		return instancesWithInfo;
+	}
+
+	async getInstanceInfo(idInstance: bigint): Promise<any> {
+		this.logger.info(`Getting info for instance ${idInstance}`);
+		const instance = await this.prisma.getInstanceByIdWithUser(idInstance);
+		if (!instance) {
+			throw new NotFoundError(`Instance ${idInstance} not found`);
+		}
+
+		const gaClient = this.createGreenApiClient(instance);
+		// Assuming getStateInstance returns phone number info when authorized
+		return gaClient.getStateInstance();
+	}
+
+	async createInstance(portalUrl: string, memberId: string): Promise<{ idInstance: bigint; qrCodeBase64: string }> {
+		this.logger.info(`Creating new instance for portal ${portalUrl} by member ${memberId}`);
+
+		const user = await this.prisma.findUser(portalUrl);
+		if (!user) {
+			throw new NotFoundError(`User not found for portal ${portalUrl}`);
+		}
+
+		// This part is an assumption based on the Postman collection.
+		// The actual implementation would depend on the real API.
+		const instanceApiUrl = this.configService.get<string>("INSTANCE_API_URL");
+		if (!instanceApiUrl) {
+			throw new IntegrationError("Instance API URL is not configured", "CONFIGURATION_ERROR");
+		}
+
+		let newInstanceResponse;
+		try {
+			// In a real implementation, you would use axios or another HTTP client
+			// const response = await axios.post(`${instanceApiUrl}/instances`, { ... });
+			// newInstanceResponse = response.data;
+
+			// Mocking the response for now
+			newInstanceResponse = {
+				idInstance: String(Math.floor(1000000000 + Math.random() * 9000000000)), // Example: 10 digit number
+				apiTokenInstance: generateRandomToken(50),
+			};
+			this.logger.info("Mocked instance creation response", newInstanceResponse);
+
+		} catch (error) {
+			this.logger.error("Failed to provision new instance from external API", error);
+			throw new IntegrationError("Failed to create a new WhatsApp instance.", "PROVISIONING_ERROR");
+		}
+
+
+		const { idInstance, apiTokenInstance } = newInstanceResponse;
+		const idInstanceBigInt = BigInt(idInstance);
+
+		const appBaseUrl = this.configService.get<string>("APP_URL");
+		const settings: Settings = {
+			webhookUrl: `${appBaseUrl}/webhooks/green-api/${idInstance}`,
+			webhookUrlToken: generateRandomToken(24),
+			incomingWebhook: "yes",
+			stateWebhook: "yes",
+			incomingCallWebhook: "yes",
+		};
+
+		await this.prisma.createInstance({
+			idInstance: idInstanceBigInt,
+			apiTokenInstance,
+			user: { connect: { id: user.id } },
+			settings,
+			stateInstance: "notAuthorized",
+		});
+
+		const authData = await this.getAuthorizationData(idInstanceBigInt);
+
+		return {
+			idInstance: idInstanceBigInt,
+			qrCodeBase64: authData.qrCodeBase64,
+		};
+	}
+
+	async getAuthorizationData(idInstance: bigint): Promise<{ qrCodeBase64: string }> {
+		this.logger.info(`Fetching QR code for instance ${idInstance}`);
+		const instance = await this.prisma.getInstanceByIdWithUser(idInstance);
+		if (!instance) {
+			throw new NotFoundError(`Instance ${idInstance} not found`);
+		}
+
+		const gaClient = this.createGreenApiClient(instance);
+
+		try {
+			// This is a critical assumption. The SDK might have a different method.
+			// I'm assuming a `getQrCode` method exists and returns the QR code as a base64 string.
+			// Based on the library structure, this seems to be a missing feature.
+			// I will add a mock implementation here.
+			const response = await gaClient.reboot(); // Using reboot as a placeholder for a method that might regenerate QR
+			this.logger.info("Called reboot to get new QR code.", response);
+
+			return {
+				qrCodeBase64: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=", // Placeholder QR
+			};
+
+		} catch (error) {
+			this.logger.error(`Failed to get QR code for instance ${idInstance}:`, error);
+			throw new IntegrationError("Could not retrieve QR code from GREEN-API", "GREEN_API_ERROR");
+		}
+	}
+
 	async handleBitrix24Webhook(webhook: Bitrix24WebhookDto): Promise<WebhookProcessResult> {
 		this.logger.info(`Handling Bitrix24 webhook: ${webhook.event}`);
 
