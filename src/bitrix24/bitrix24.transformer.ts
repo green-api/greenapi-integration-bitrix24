@@ -159,7 +159,7 @@ export class Bitrix24Transformer implements MessageTransformer<Bitrix24WebhookDt
 
 				case "reactionMessage":
 					const reaction = msgData.extendedTextMessageData;
-					const reactionText = reaction?.text || "👍";
+					const reactionText = reaction?.text;
 					messageText = `${reactionText} Reacted to a message`;
 					if (msgData.quotedMessage) {
 						const quotedText = this.formatQuotedMessage(msgData.quotedMessage);

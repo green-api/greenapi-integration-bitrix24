@@ -14,7 +14,13 @@ declare global {
 async function bootstrap() {
 	const app = await NestFactory.create(AppModule, {});
 	app.useGlobalPipes(new ValidationPipe());
-	app.use(helmet());
+	app.use(helmet({
+		contentSecurityPolicy: false,
+		frameguard: false,
+		crossOriginEmbedderPolicy: false,
+		crossOriginOpenerPolicy: false,
+		crossOriginResourcePolicy: false,
+	}));
 	app.enableCors();
 
 	await app.listen(3000);

@@ -1,4 +1,4 @@
-import { IsString } from "class-validator";
+import { IsOptional, IsString } from "class-validator";
 
 export class Bitrix24InstallDto {
 	@IsString()
@@ -19,6 +19,7 @@ export class Bitrix24InstallDto {
 	@IsString()
 	PLACEMENT: string;
 
+	@IsOptional()
 	@IsString()
-	PLACEMENT_OPTIONS: string;
+	PLACEMENT_OPTIONS?: string;
 }
